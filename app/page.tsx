@@ -8,6 +8,7 @@ import { withChecklist } from "@/lib/checklist";
 type Folder = { id: number; name: string };
 
 const MAX_PHOTOS = 6;
+const DRAFT_KEY = "journal-draft";
 
 function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -39,6 +40,39 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [entryDate, setEntryDate] = useState("");
+
+  const [draftLoaded, setDraftLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null");
+      if (draft) {
+        setFolderId(draft.folderId ?? "");
+        setTitle(draft.title ?? "");
+        setContent(draft.content ?? "");
+        setChecklist(draft.checklist ?? []);
+        setPhotos(draft.photos ?? []);
+        setEntryDate(draft.entryDate ?? "");
+      }
+    } catch {}
+    setDraftLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const draft = { folderId, title, content, checklist, photos, entryDate };
+    const isEmpty =
+      !title && !content && !entryDate && !folderId && !checklist.length && !photos.length;
+    try {
+      if (isEmpty) return localStorage.removeItem(DRAFT_KEY);
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch {
+        // Photos can exceed the storage quota; keep the text at least.
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, photos: [] }));
+      }
+    } catch {}
+  }, [draftLoaded, folderId, title, content, checklist, photos, entryDate]);
 
   useEffect(() => {
     fetch("/api/folders")
