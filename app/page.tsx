@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
+import { withChecklist } from "@/lib/checklist";
 
 type Folder = { id: number; name: string };
 
@@ -33,6 +34,7 @@ export default function Home() {
   const [folderId, setFolderId] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [checklist, setChecklist] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -64,7 +66,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
-          notes: content,
+          notes: withChecklist(content, checklist),
           photos,
           folder_id: folderId ? Number(folderId) : null,
           created_at: entryDate ? new Date(entryDate).toISOString() : null,
@@ -73,6 +75,7 @@ export default function Home() {
       if (!res.ok) throw new Error();
       setTitle("");
       setContent("");
+      setChecklist([]);
       setPhotos([]);
       setEntryDate("");
       setSaved(true);
@@ -167,6 +170,50 @@ export default function Home() {
             rows={8}
             className="mt-3 w-full resize-y rounded-xl bg-[#faf9f6] p-4 leading-7 outline-none placeholder:text-[#b7b8ae] focus:ring-1 focus:ring-[#82917b]"
           />
+
+          <p className="mt-6 text-sm font-medium">Checklist</p>
+          <div className="mt-2 space-y-2">
+            {checklist.map((item, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input type="checkbox" disabled aria-hidden />
+                <input
+                  value={item}
+                  autoFocus
+                  onChange={(e) =>
+                    setChecklist((c) =>
+                      c.map((x, j) => (j === i ? e.target.value : x))
+                    )
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setChecklist((c) => [...c, ""]);
+                    }
+                  }}
+                  placeholder="Checklist item"
+                  aria-label={`Checklist item ${i + 1}`}
+                  className="w-full border-b border-[#ece9e1] bg-transparent py-1 outline-none focus:border-[#82917b]"
+                />
+                <button
+                  type="button"
+                  aria-label="Remove item"
+                  onClick={() =>
+                    setChecklist((c) => c.filter((_, j) => j !== i))
+                  }
+                  className="text-xs text-[#a16e65]"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setChecklist((c) => [...c, ""])}
+              className="text-sm text-[#60745d] hover:underline"
+            >
+              + Add checklist item
+            </button>
+          </div>
 
           <label
             className="mt-6 block text-sm font-medium"

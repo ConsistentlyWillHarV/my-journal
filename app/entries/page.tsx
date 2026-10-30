@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "../components/Header";
+import { parseNotes, toggleLine } from "@/lib/checklist";
 
 type Entry = {
   id: number;
@@ -19,6 +20,12 @@ type Folder = { id: number; name: string };
 function Entries() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [editing, setEditing] = useState<{
+    id: number;
+    title: string;
+    notes: string;
+    folder: string;
+  } | null>(null);
   const [search, setSearch] = useState("");
   const [folder, setFolder] = useState(
     useSearchParams().get("folder") ?? "all"
@@ -39,6 +46,56 @@ function Entries() {
     if (!confirm("Delete this journal entry?")) return;
     const res = await fetch(`/api/entries/${id}`, { method: "DELETE" });
     if (res.ok) setEntries((previous) => previous.filter((e) => e.id !== id));
+  }
+
+  async function patchEntry(
+    entry: Entry,
+    changes: { title?: string; notes?: string; folder_id?: number | null }
+  ) {
+    const res = await fetch(`/api/entries/${entry.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: entry.title,
+        notes: entry.notes,
+        folder_id: entry.folder_id,
+        ...changes,
+      }),
+    });
+    if (!res.ok) {
+      alert("Could not save changes. Please try again.");
+      return false;
+    }
+    const updated = await res.json();
+    setEntries((previous) =>
+      previous.map((e) =>
+        e.id === entry.id
+          ? {
+              ...e,
+              ...updated,
+              folder_name:
+                folders.find((f) => f.id === updated.folder_id)?.name ?? null,
+            }
+          : e
+      )
+    );
+    return true;
+  }
+
+  function toggleItem(entry: Entry, index: number) {
+    patchEntry(entry, { notes: toggleLine(entry.notes, index) });
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    const entry = entries.find((e) => e.id === editing.id);
+    if (!entry) return;
+    const ok = await patchEntry(entry, {
+      title: editing.title,
+      notes: editing.notes,
+      folder_id: editing.folder ? Number(editing.folder) : null,
+    });
+    if (ok) setEditing(null);
   }
 
   const filtered = entries.filter((entry) => {
@@ -113,10 +170,90 @@ function Entries() {
                 </span>
                 {entry.folder_name && <span>📁 {entry.folder_name}</span>}
               </div>
-              <h3 className="mt-2 font-semibold">{entry.title}</h3>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#77796f]">
-                {entry.notes}
-              </p>
+              {editing?.id === entry.id ? (
+                <div className="mt-3 space-y-3">
+                  <input
+                    value={editing.title}
+                    onChange={(e) =>
+                      setEditing({ ...editing, title: e.target.value })
+                    }
+                    aria-label="Title"
+                    className="w-full rounded-xl border border-[#e9e5da] px-3 py-2 font-semibold outline-none focus:border-[#82917b]"
+                  />
+                  <select
+                    value={editing.folder}
+                    onChange={(e) =>
+                      setEditing({ ...editing, folder: e.target.value })
+                    }
+                    aria-label="Folder"
+                    className="w-full rounded-xl border border-[#e9e5da] bg-white px-3 py-2 outline-none focus:border-[#82917b]"
+                  >
+                    <option value="">No folder</option>
+                    {folders.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea
+                    value={editing.notes}
+                    onChange={(e) =>
+                      setEditing({ ...editing, notes: e.target.value })
+                    }
+                    rows={8}
+                    aria-label="Notes"
+                    className="w-full resize-y rounded-xl bg-[#faf9f6] p-3 text-sm leading-6 outline-none focus:ring-1 focus:ring-[#82917b]"
+                  />
+                  <p className="text-xs text-[#85877d]">
+                    Checklist items are lines starting with &quot;- [ ] &quot;.
+                  </p>
+                  <div className="flex gap-3 text-sm">
+                    <button
+                      onClick={saveEdit}
+                      disabled={!editing.title.trim()}
+                      className="rounded-lg bg-[#73876f] px-4 py-1.5 text-white disabled:opacity-40"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditing(null)}
+                      className="text-[#85877d] hover:underline"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h3 className="mt-2 font-semibold">{entry.title}</h3>
+                  <div className="mt-3 text-sm leading-6 text-[#77796f]">
+                    {parseNotes(entry.notes).map((line) =>
+                      line.kind === "item" ? (
+                        <label
+                          key={line.index}
+                          className="flex cursor-pointer items-start gap-2"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={line.checked}
+                            onChange={() => toggleItem(entry, line.index)}
+                            className="mt-1.5"
+                          />
+                          <span
+                            className={line.checked ? "line-through opacity-60" : ""}
+                          >
+                            {line.text}
+                          </span>
+                        </label>
+                      ) : (
+                        <p key={line.index} className="whitespace-pre-wrap">
+                          {line.text || " "}
+                        </p>
+                      )
+                    )}
+                  </div>
+                </>
+              )}
               {entry.photos.length > 0 && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {entry.photos.map((src, i) => (
@@ -130,12 +267,27 @@ function Entries() {
                   ))}
                 </div>
               )}
-              <button
-                onClick={() => deleteEntry(entry.id)}
-                className="mt-4 text-xs text-[#a16e65] hover:underline"
-              >
-                Delete entry
-              </button>
+              <div className="mt-4 flex gap-4 text-xs">
+                <button
+                  onClick={() =>
+                    setEditing({
+                      id: entry.id,
+                      title: entry.title,
+                      notes: entry.notes,
+                      folder: entry.folder_id ? String(entry.folder_id) : "",
+                    })
+                  }
+                  className="text-[#60745d] hover:underline"
+                >
+                  Edit entry
+                </button>
+                <button
+                  onClick={() => deleteEntry(entry.id)}
+                  className="text-[#a16e65] hover:underline"
+                >
+                  Delete entry
+                </button>
+              </div>
             </article>
           ))
         )}
