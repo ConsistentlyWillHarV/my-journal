@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "../components/Header";
 import { parseNotes, toggleLine } from "@/lib/checklist";
+import { folderPath, sortedByPath } from "@/lib/folders";
 
 type Entry = {
   id: number;
@@ -15,7 +16,7 @@ type Entry = {
   folder_id: number | null;
   folder_name: string | null;
 };
-type Folder = { id: number; name: string };
+type Folder = { id: number; name: string; parent_id: number | null };
 
 function Entries() {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -98,12 +99,25 @@ function Entries() {
     if (ok) setEditing(null);
   }
 
+  // True when `id` is a subfolder (at any depth) of `ancestor`.
+  function isInside(id: number | null, ancestor: number) {
+    const seen = new Set<number>();
+    let current = folders.find((f) => f.id === id);
+    while (current?.parent_id != null && !seen.has(current.id)) {
+      if (current.parent_id === ancestor) return true;
+      seen.add(current.id);
+      current = folders.find((f) => f.id === current!.parent_id);
+    }
+    return false;
+  }
+
   const filtered = entries.filter((entry) => {
     const inFolder =
       folder === "all" ||
       (folder === "none"
         ? entry.folder_id === null
-        : String(entry.folder_id) === folder);
+        : String(entry.folder_id) === folder ||
+          isInside(entry.folder_id, Number(folder)));
     return (
       inFolder &&
       `${entry.title} ${entry.notes}`
@@ -135,9 +149,9 @@ function Entries() {
         >
           <option value="all">All folders</option>
           <option value="none">Unfiled</option>
-          {folders.map((f) => (
+          {sortedByPath(folders).map((f) => (
             <option key={f.id} value={f.id}>
-              {f.name}
+              {folderPath(folders, f.id)}
             </option>
           ))}
         </select>
@@ -168,7 +182,12 @@ function Entries() {
                     timeStyle: "short",
                   })}
                 </span>
-                {entry.folder_name && <span>📁 {entry.folder_name}</span>}
+                {entry.folder_id !== null && (
+                  <span>
+                    📁{" "}
+                    {folderPath(folders, entry.folder_id) || entry.folder_name}
+                  </span>
+                )}
               </div>
               {editing?.id === entry.id ? (
                 <div className="mt-3 space-y-3">
@@ -189,9 +208,9 @@ function Entries() {
                     className="w-full rounded-xl border border-[#e9e5da] bg-white px-3 py-2 outline-none focus:border-[#82917b]"
                   >
                     <option value="">No folder</option>
-                    {folders.map((f) => (
+                    {sortedByPath(folders).map((f) => (
                       <option key={f.id} value={f.id}>
-                        {f.name}
+                        {folderPath(folders, f.id)}
                       </option>
                     ))}
                   </select>

@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import { withChecklist } from "@/lib/checklist";
+import { folderPath, sortedByPath } from "@/lib/folders";
 
-type Folder = { id: number; name: string };
+type Folder = { id: number; name: string; parent_id: number | null };
 
 const MAX_PHOTOS = 6;
 const DRAFT_KEY = "journal-draft";
@@ -175,9 +176,9 @@ export default function Home() {
             className="mt-2 w-full rounded-xl border border-[#e9e5da] bg-white px-4 py-3 outline-none focus:border-[#82917b]"
           >
             <option value="">No folder</option>
-            {folders.map((f) => (
+            {sortedByPath(folders).map((f) => (
               <option key={f.id} value={f.id}>
-                {f.name}
+                {folderPath(folders, f.id)}
               </option>
             ))}
           </select>
