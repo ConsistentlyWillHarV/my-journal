@@ -12,11 +12,19 @@ type Folder = {
   parent_id: number | null;
   entry_count: number;
 };
+type Entry = {
+  id: number;
+  title: string;
+  notes: string;
+  created_at: string;
+  folder_id: number | null;
+};
 
 function Folders() {
   const parentParam = useSearchParams().get("parent");
   const parentId = parentParam ? Number(parentParam) : null;
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -24,8 +32,13 @@ function Folders() {
       .then((res) => res.json())
       .then(setFolders)
       .catch(() => console.error("Could not load folders."));
+    fetch("/api/entries")
+      .then((res) => res.json())
+      .then(setEntries)
+      .catch(() => console.error("Could not load entries."));
   }, []);
 
+  const here = entries.filter((e) => e.folder_id === parentId);
   const current = folders.find((f) => f.id === parentId) ?? null;
   const visible = folders.filter((f) => f.parent_id === parentId);
   const crumbs: Folder[] = [];
@@ -170,6 +183,36 @@ function Folders() {
           })
         )}
       </div>
+
+      {here.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium text-[#82917b]">
+            {current ? "Entries in this folder" : "Unfiled entries"}
+          </h2>
+          <div className="mt-3 space-y-3">
+            {here.map((entry) => (
+              <Link
+                key={entry.id}
+                href={`/entries?folder=${entry.folder_id ?? "none"}`}
+                className="block rounded-2xl border border-[#e9e5da] bg-white p-5 hover:border-[#82917b]"
+              >
+                <span className="text-xs text-[#82917b]">
+                  {new Date(entry.created_at).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </span>
+                <h3 className="mt-1 font-semibold">📝 {entry.title}</h3>
+                {entry.notes && (
+                  <p className="mt-1 line-clamp-2 text-sm text-[#77796f]">
+                    {entry.notes}
+                  </p>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
