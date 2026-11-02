@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { MAX_PHOTOS } from "@/lib/images";
 
 export async function PATCH(
   request: Request,
@@ -12,7 +13,7 @@ export async function PATCH(
   const folderId = Number.isInteger(folder_id) ? folder_id : null;
   // Only touch the photos when the request sends them.
   const photoList: string[] | null = Array.isArray(photos)
-    ? photos.filter((p) => typeof p === "string").slice(0, 6)
+    ? photos.filter((p) => typeof p === "string").slice(0, MAX_PHOTOS)
     : null;
   const [row] = await sql`
     UPDATE "Journal"

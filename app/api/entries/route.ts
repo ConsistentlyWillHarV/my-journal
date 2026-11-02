@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { MAX_PHOTOS } from "@/lib/images";
 
 export async function GET() {
   const rows = await sql`
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Title is required" }, { status: 400 });
   }
   const photoList: string[] = Array.isArray(photos)
-    ? photos.filter((p) => typeof p === "string").slice(0, 6)
+    ? photos.filter((p) => typeof p === "string").slice(0, MAX_PHOTOS)
     : [];
   const folderId = Number.isInteger(folder_id) ? folder_id : null;
   const date = created_at ? new Date(created_at) : null;

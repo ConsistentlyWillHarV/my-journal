@@ -1,4 +1,4 @@
-export const MAX_PHOTOS = 6;
+export const MAX_PHOTOS = 15;
 
 export function resizeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
