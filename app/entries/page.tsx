@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "../components/Header";
+import PhotoViewer from "../components/PhotoViewer";
 import { parseNotes, toggleLine } from "@/lib/checklist";
-import { folderPath, sortedByPath } from "@/lib/folders";
+import { folderChain, folderPath, sortedByPath } from "@/lib/folders";
 
 type Entry = {
   id: number;
@@ -163,10 +164,10 @@ function Entries() {
             <p className="text-3xl">🌱</p>
             <p className="mt-3 font-medium">No entries here yet</p>
             <Link
-              href="/"
+              href="/folders"
               className="mt-2 inline-block text-sm text-[#60745d] hover:underline"
             >
-              Write one →
+              Open a folder to write one →
             </Link>
           </div>
         ) : (
@@ -185,7 +186,19 @@ function Entries() {
                 {entry.folder_id !== null && (
                   <span>
                     📁{" "}
-                    {folderPath(folders, entry.folder_id) || entry.folder_name}
+                    {folderChain(folders, entry.folder_id).length === 0
+                      ? entry.folder_name
+                      : folderChain(folders, entry.folder_id).map((f, i) => (
+                          <span key={f.id}>
+                            {i > 0 && " / "}
+                            <Link
+                              href={`/folders?parent=${f.id}`}
+                              className="hover:underline"
+                            >
+                              {f.name}
+                            </Link>
+                          </span>
+                        ))}
                   </span>
                 )}
               </div>
@@ -276,13 +289,7 @@ function Entries() {
               {entry.photos.length > 0 && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {entry.photos.map((src, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={i}
-                      src={src}
-                      alt=""
-                      className="w-full rounded-lg object-cover"
-                    />
+                    <PhotoViewer key={i} src={src} />
                   ))}
                 </div>
               )}

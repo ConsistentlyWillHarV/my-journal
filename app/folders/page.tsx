@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "../components/Header";
+import WriteModal from "../components/WriteModal";
+import PhotoViewer from "../components/PhotoViewer";
 import { folderPath } from "@/lib/folders";
 
 type Folder = {
@@ -17,6 +19,7 @@ type Entry = {
   title: string;
   notes: string;
   created_at: string;
+  photos: string[];
   folder_id: number | null;
 };
 
@@ -26,16 +29,21 @@ function Folders() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [name, setName] = useState("");
+  const [writeTo, setWriteTo] = useState<Folder | null>(null);
+
+  function loadEntries() {
+    fetch("/api/entries")
+      .then((res) => res.json())
+      .then(setEntries)
+      .catch(() => console.error("Could not load entries."));
+  }
 
   useEffect(() => {
     fetch("/api/folders")
       .then((res) => res.json())
       .then(setFolders)
       .catch(() => console.error("Could not load folders."));
-    fetch("/api/entries")
-      .then((res) => res.json())
-      .then(setEntries)
-      .catch(() => console.error("Could not load entries."));
+    loadEntries();
   }, []);
 
   const here = entries.filter((e) => e.folder_id === parentId);
@@ -103,12 +111,20 @@ function Folders() {
           : "Organize your entries into folders."}
       </p>
       {current && (
-        <Link
-          href={`/entries?folder=${current.id}`}
-          className="mt-2 inline-block text-sm text-[#60745d] hover:underline"
-        >
-          View entries in this folder ({current.entry_count}) →
-        </Link>
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          <button
+            onClick={() => setWriteTo(current)}
+            className="rounded-xl bg-[#73876f] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#60745d]"
+          >
+            ✏️ Write here
+          </button>
+          <Link
+            href={`/entries?folder=${current.id}`}
+            className="text-sm text-[#60745d] hover:underline"
+          >
+            View entries in this folder ({current.entry_count}) →
+          </Link>
+        </div>
       )}
 
       <form
@@ -166,6 +182,12 @@ function Folders() {
                       ` · ${subCount} ${subCount === 1 ? "subfolder" : "subfolders"}`}
                   </span>
                 </Link>
+                <button
+                  onClick={() => setWriteTo(folder)}
+                  className="rounded-lg bg-[#73876f] px-3 py-1 text-xs font-medium text-white hover:bg-[#60745d]"
+                >
+                  Write
+                </button>
                 <Link
                   href={`/entries?folder=${folder.id}`}
                   className="text-xs text-[#60745d] hover:underline"
@@ -191,27 +213,53 @@ function Folders() {
           </h2>
           <div className="mt-3 space-y-3">
             {here.map((entry) => (
-              <Link
+              <div
                 key={entry.id}
-                href={`/entries?folder=${entry.folder_id ?? "none"}`}
-                className="block rounded-2xl border border-[#e9e5da] bg-white p-5 hover:border-[#82917b]"
+                className="rounded-2xl border border-[#e9e5da] bg-white p-5 hover:border-[#82917b]"
               >
-                <span className="text-xs text-[#82917b]">
-                  {new Date(entry.created_at).toLocaleString(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
-                </span>
-                <h3 className="mt-1 font-semibold">📝 {entry.title}</h3>
-                {entry.notes && (
-                  <p className="mt-1 line-clamp-2 text-sm text-[#77796f]">
-                    {entry.notes}
-                  </p>
+                <Link
+                  href={`/entries?folder=${entry.folder_id ?? "none"}`}
+                  className="block"
+                >
+                  <span className="text-xs text-[#82917b]">
+                    {new Date(entry.created_at).toLocaleString(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                  <h3 className="mt-1 font-semibold">📝 {entry.title}</h3>
+                  {entry.notes && (
+                    <p className="mt-1 line-clamp-2 text-sm text-[#77796f]">
+                      {entry.notes}
+                    </p>
+                  )}
+                </Link>
+                {entry.photos?.length > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {entry.photos.map((src, i) => (
+                      <PhotoViewer key={i} src={src} />
+                    ))}
+                  </div>
                 )}
-              </Link>
+              </div>
             ))}
           </div>
         </div>
+      )}
+
+      {writeTo && (
+        <WriteModal
+          folderId={writeTo.id}
+          folderLabel={folderPath(folders, writeTo.id)}
+          onClose={() => setWriteTo(null)}
+          onSaved={() => {
+            loadEntries();
+            // entry counts live on the folders
+            fetch("/api/folders")
+              .then((res) => res.json())
+              .then(setFolders);
+          }}
+        />
       )}
     </div>
   );
