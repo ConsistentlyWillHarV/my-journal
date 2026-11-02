@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "../components/Header";
 import WriteModal from "../components/WriteModal";
+import EditEntryModal from "../components/EditEntryModal";
 import PhotoViewer from "../components/PhotoViewer";
 import { folderPath } from "@/lib/folders";
 
@@ -30,6 +31,19 @@ function Folders() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [name, setName] = useState("");
   const [writeTo, setWriteTo] = useState<Folder | null>(null);
+
+  const [editEntry, setEditEntry] = useState<Entry | null>(null);
+
+  async function deleteEntry(entry: Entry) {
+    if (!confirm(`Delete "${entry.title}"?`)) return;
+    const res = await fetch(`/api/entries/${entry.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setEntries((previous) => previous.filter((e) => e.id !== entry.id));
+      fetch("/api/folders")
+        .then((r) => r.json())
+        .then(setFolders);
+    }
+  }
 
   function loadEntries() {
     fetch("/api/entries")
@@ -241,10 +255,38 @@ function Folders() {
                     ))}
                   </div>
                 )}
+                <div className="mt-4 flex gap-4 text-xs">
+                  <button
+                    onClick={() => setEditEntry(entry)}
+                    className="text-[#60745d] hover:underline"
+                  >
+                    Edit entry
+                  </button>
+                  <button
+                    onClick={() => deleteEntry(entry)}
+                    className="text-[#a16e65] hover:underline"
+                  >
+                    Delete entry
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {editEntry && (
+        <EditEntryModal
+          entry={editEntry}
+          folders={folders}
+          onClose={() => setEditEntry(null)}
+          onSaved={() => {
+            loadEntries();
+            fetch("/api/folders")
+              .then((r) => r.json())
+              .then(setFolders);
+          }}
+        />
       )}
 
       {writeTo && (
