@@ -7,6 +7,7 @@ import Header from "../components/Header";
 import PhotoViewer from "../components/PhotoViewer";
 import { parseNotes, toggleLine } from "@/lib/checklist";
 import { folderChain, folderPath, sortedByPath } from "@/lib/folders";
+import { MAX_PHOTOS, resizeImage } from "@/lib/images";
 
 type Entry = {
   id: number;
@@ -27,6 +28,7 @@ function Entries() {
     title: string;
     notes: string;
     folder: string;
+    photos: string[];
   } | null>(null);
   const [search, setSearch] = useState("");
   const [folder, setFolder] = useState(
@@ -52,7 +54,12 @@ function Entries() {
 
   async function patchEntry(
     entry: Entry,
-    changes: { title?: string; notes?: string; folder_id?: number | null }
+    changes: {
+      title?: string;
+      notes?: string;
+      folder_id?: number | null;
+      photos?: string[];
+    }
   ) {
     const res = await fetch(`/api/entries/${entry.id}`, {
       method: "PATCH",
@@ -96,8 +103,18 @@ function Entries() {
       title: editing.title,
       notes: editing.notes,
       folder_id: editing.folder ? Number(editing.folder) : null,
+      photos: editing.photos,
     });
     if (ok) setEditing(null);
+  }
+
+  async function addEditPhotos(files: FileList | null) {
+    if (!files || !editing) return;
+    const room = MAX_PHOTOS - editing.photos.length;
+    const added = await Promise.all(
+      Array.from(files).slice(0, room).map(resizeImage)
+    );
+    setEditing((e) => e && { ...e, photos: [...e.photos, ...added] });
   }
 
   // True when `id` is a subfolder (at any depth) of `ancestor`.
@@ -239,6 +256,48 @@ function Entries() {
                   <p className="text-xs text-[#85877d]">
                     Checklist items are lines starting with &quot;- [ ] &quot;.
                   </p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    aria-label="Add photos"
+                    disabled={editing.photos.length >= MAX_PHOTOS}
+                    onChange={(e) => {
+                      addEditPhotos(e.target.files);
+                      e.target.value = "";
+                    }}
+                    className="block w-full text-sm text-[#85877d] file:mr-3 file:rounded-lg file:border-0 file:bg-[#eef1e8] file:px-4 file:py-2 file:text-[#60745d]"
+                  />
+                  {editing.photos.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {editing.photos.map((src, i) => (
+                        <div key={i} className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={src}
+                            alt=""
+                            className="h-20 w-20 rounded-lg object-cover"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Remove photo"
+                            onClick={() =>
+                              setEditing(
+                                (e) =>
+                                  e && {
+                                    ...e,
+                                    photos: e.photos.filter((_, j) => j !== i),
+                                  }
+                              )
+                            }
+                            className="absolute -right-1 -top-1 rounded-full bg-white px-1.5 text-xs shadow"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-3 text-sm">
                     <button
                       onClick={saveEdit}
@@ -286,7 +345,7 @@ function Entries() {
                   </div>
                 </>
               )}
-              {entry.photos.length > 0 && (
+              {editing?.id !== entry.id && entry.photos.length > 0 && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {entry.photos.map((src, i) => (
                     <PhotoViewer key={i} src={src} />
@@ -301,6 +360,7 @@ function Entries() {
                       title: entry.title,
                       notes: entry.notes,
                       folder: entry.folder_id ? String(entry.folder_id) : "",
+                      photos: entry.photos,
                     })
                   }
                   className="text-[#60745d] hover:underline"

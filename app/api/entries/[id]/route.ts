@@ -5,16 +5,21 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { title, notes, folder_id } = await request.json();
+  const { title, notes, folder_id, photos } = await request.json();
   if (typeof title !== "string" || !title.trim()) {
     return Response.json({ error: "Title is required" }, { status: 400 });
   }
   const folderId = Number.isInteger(folder_id) ? folder_id : null;
+  // Only touch the photos when the request sends them.
+  const photoList: string[] | null = Array.isArray(photos)
+    ? photos.filter((p) => typeof p === "string").slice(0, 6)
+    : null;
   const [row] = await sql`
     UPDATE "Journal"
     SET title = ${title.trim()},
         notes = ${typeof notes === "string" ? notes : ""},
-        folder_id = ${folderId}
+        folder_id = ${folderId},
+        photos = COALESCE(${photoList}::text[], photos)
     WHERE id = ${Number(id)}
     RETURNING id, title, notes, created_at, photos, folder_id`;
   if (!row) return Response.json({ error: "Not found" }, { status: 404 });
